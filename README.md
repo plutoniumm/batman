@@ -1,22 +1,18 @@
-# macOS Keylogger
-
-This repository holds the code for a simple and easy to use keylogger for macOS. It is not meant to be malicious, and is written as a proof of concept. There is not a lot of information on keyloggers or implementing them on macOS, and most of the ones I've seen do not work as indicated. This project aims to be a simple implementation on how it can be accomplished on OS X.
-
-> Note: This keylogger is currently unable to capture secure input such as passwords. See issue #3 for more information.
+# batman
+This repository holds the code for a simple keylogger for macOS with hooks for function execution on keypresses. We'll soon have a `.brc` config file to insert custom functions to run on keypresses.
 
 ## Usage
-
-Start by cloning the repository and running the proper make commands, shown below. By default, the application installs to `/usr/local/bin/keylogger`, which can easily be changed in the [`Makefile`](https://github.com/caseyscarborough/keylogger/blob/master/Makefile). `make install` may require root access.
+After cloning the repository, you can build the application with the following command:
 
 ```bash
-$ git clone https://github.com/caseyscarborough/keylogger && cd keylogger
 $ make && make install
+# installs to /usr/local/bin/batman
 ```
 
-The application by default logs to `/var/log/keystroke.log`, which may require root access depending on your system's permissions. You can change this in [`keylogger.h`](https://github.com/caseyscarborough/keylogger/blob/master/keylogger.h#L12) if necessary.
+Logs to `/var/log/keystroke.log` (change this in `keylogger.h`).
 
 ```bash
-$ keylogger
+$ batman
 Logging to: /var/log/keystroke.log
 ```
 
@@ -49,31 +45,15 @@ $ sudo make uninstall
 ```
 
 ### Optional Parameters
-
 You can pass in two optional parameters to the program. The `clear` option will clear the logs at the default location. Any other argument passed in will be used as the path to the log file for that process. See below:
 
 ```bash
-# Clear the logfile.
-$ keylogger clear
+$ batman clear
 Logfile cleared.
 
-# Specify a logfile location.
-$ keylogger ~/logfile.txt
+$ batman ~/logfile.txt
 Logging to: /Users/Casey/logfile.txt
 ```
 
-## Issues
-
-### Unable to Create Event Tap
-
-If you get the following error:
-
-```
-ERROR: Unable to create event tap.
-```
-
-Go into System Preferences and go to Security & Privacy, click the Privacy tab, choose Accessibility in the left pane, and ensure that Terminal is checked.
-
-## Contributing
-
-Feel free to fork the project and submit a pull request with your changes!
+## Notes
+- Terminal must be given Accessibility permissions in order to run the program Else it will error with `ERROR: Unable to create event tap.` (Security & Privacy > Accessibility > Terminal).

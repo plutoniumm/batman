@@ -8,6 +8,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
+#include "utils.h"
 
 FILE *logfile = NULL;
 const char *logfileLocation = "/var/log/keystroke.log";

