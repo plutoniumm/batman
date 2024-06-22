@@ -50,7 +50,6 @@ void update_hashmap(struct hashmap **hashmap, int *hashmap_size) {
       new_hashmap = (struct hashmap *) realloc(new_hashmap, (count + 1) * sizeof(struct hashmap));
       new_hashmap[count].key = strdup(kv[0]);
       new_hashmap[count].value = strdup(kv[1]);
-      printf("%s -> %s\n", new_hashmap[count].key, new_hashmap[count].value);
       count++;
     }
 
@@ -67,7 +66,7 @@ void update_hashmap(struct hashmap **hashmap, int *hashmap_size) {
 
   *hashmap = new_hashmap;
   *hashmap_size = count;
-
+  printf("Hashmap updated.\n");
   return;
 }
 

