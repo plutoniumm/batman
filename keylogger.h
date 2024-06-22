@@ -4,6 +4,8 @@
 // https://developer.apple.com/library/mac/documentation/Carbon/Reference/QuartzEventServicesRef/Reference/reference.html
 #include <ApplicationServices/ApplicationServices.h>
 #include <Carbon/Carbon.h>
+#include <sys/types.h>
+#include <sys/time.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>

@@ -5,7 +5,7 @@ struct hashmap {
 
 int split(char *str, const char *delim, char ***array, int *length);
 
-int get_config(struct hashmap **hashmap, int *hashmap_size);
+int update_hashmap(struct hashmap **hashmap, int *hashmap_size);
 
 int get_value(
   struct hashmap *hm,

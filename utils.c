@@ -1,3 +1,6 @@
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/time.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -25,26 +28,29 @@ int split(char *str, const char *delim, char ***arr, int *length) {
   return 1;
 }
 
-int get_config(struct hashmap **hashmap, int *hashmap_size) {
+void update_hashmap(struct hashmap **hashmap, int *hashmap_size) {
   FILE *fp = fopen("./.brc", "r");
   if (fp == NULL) {
     printf("Error opening file\n");
-    return 1;
+    return;
   }
   char *line = NULL;
   size_t len = 0;
   ssize_t read;
 
   int count = 0;
+
+  struct hashmap *new_hashmap = NULL;
   while ((read = getline(&line, &len, fp)) != -1) {
     char **kv = NULL;
     int length;
     split(line, "=", &kv, &length);
 
     if (length == 2) {
-      *hashmap = (struct hashmap *) realloc(*hashmap, (count + 1) * sizeof(struct hashmap));
-      (*hashmap)[count].key = strdup(kv[0]);
-      (*hashmap)[count].value = strdup(kv[1]);
+      new_hashmap = (struct hashmap *) realloc(new_hashmap, (count + 1) * sizeof(struct hashmap));
+      new_hashmap[count].key = strdup(kv[0]);
+      new_hashmap[count].value = strdup(kv[1]);
+      printf("%s -> %s\n", new_hashmap[count].key, new_hashmap[count].value);
       count++;
     }
 
@@ -53,45 +59,29 @@ int get_config(struct hashmap **hashmap, int *hashmap_size) {
 
   free(line);
   fclose(fp);
-  *hashmap_size = count;
-  return 0;
-};
 
-// value -> program,args1,args2..
+  for (int i = 0; i < *hashmap_size; i++) {
+    free((*hashmap)[i].key);
+    free((*hashmap)[i].value);
+  }
+  free(*hashmap);
+
+  *hashmap = new_hashmap;
+  *hashmap_size = count;
+}
+
 int get_value(
   struct hashmap *hm,
   int hashmap_size,
-  char *key,
-  char *program,
-  char **args,
+  const char *key,
+  char ***args,
   int *args_length
 ) {
   for (int i = 0; i < hashmap_size; i++) {
     if (strcmp(hm[i].key, key) == 0) {
-      split(hm[i].value, ",", &args, args_length);
+      split(hm[i].value, ",", args, args_length);
+      return 0;
     }
   }
-
-  return 0;
+  return 1; // Key not found
 }
-
-// int main() {
-//   struct hashmap *hm = NULL;
-//   int hashmap_size = 0;
-
-//   get_config(&hm, &hashmap_size);
-//   for (int i = 0; i < hashmap_size; i++) {
-//     printf("%s\n", hm[i].key);
-//     char **args = NULL;
-//     int args_length;
-
-//     get_value(
-//       hm, hashmap_size,
-//       hm[i].key,
-//       NULL, args, &args_length
-//     );
-//     printf("%s\n", hm[i].value);
-//   }
-//   // free at end of program is not necessary
-//   return 0;
-// }
