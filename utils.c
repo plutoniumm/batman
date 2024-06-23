@@ -3,6 +3,7 @@
 #include <sys/time.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -29,7 +30,7 @@ int split(char *str, const char *delim, char ***arr, int *length) {
 }
 
 // a string will be sent as "program,arg1,arg2,..."
-int exec(char *str) {
+int execute(char *str) {
   char **args = NULL;
   int length;
   split(str, ",", &args, &length);
@@ -41,10 +42,9 @@ int exec(char *str) {
   }
   new_args[length] = NULL;
 
-  // no fork yet, first just print
   printf("Program: %s\n", program);
   printf("Args: ");
-  for (int i = 0; i < length; i++) {
+  for (int i = 1; i < length; i++) {
     printf("%s ", new_args[i]);
   };
 
@@ -63,7 +63,7 @@ int exec(char *str) {
 
 
 void update_hashmap(struct hashmap **hashmap, int *hashmap_size) {
-  FILE *fp = fopen("./.brc", "r");
+  FILE *fp = fopen("./batman.conf", "r");
   if (fp == NULL) {
     printf("Error opening file\n");
     return;
@@ -75,7 +75,23 @@ void update_hashmap(struct hashmap **hashmap, int *hashmap_size) {
   int count = 0;
 
   struct hashmap *new_hashmap = NULL;
+  bool comment = false;
   while ((read = getline(&line, &len, fp)) != -1) {
+    // ignore empty lines or comments
+    if (line[0] == '\n') continue;
+    comment = false;
+    for (int i = 0; i < strlen(line); i++) {
+      if (line[i] == ' ' || line[i] == '\t') {
+        continue;
+      };
+      if (line[i] == '#') {
+        comment = true;
+        break;
+      };
+    };
+    if (comment) continue;
+
+
     char **kv = NULL;
     int length;
     split(line, "=", &kv, &length);

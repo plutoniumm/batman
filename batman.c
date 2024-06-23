@@ -145,7 +145,7 @@ CGEventRef CGEventCallback(CGEventTapProxy _, CGEventType type, CGEventRef event
       if (strcmp(hm[i].key, key_str) == 0) {
         match = i;
         printf("Match: %s->%s\n", key_str, hm[i].value);
-        exec(hm[i].value);
+        execute(hm[i].value);
         break;
       };
     };
