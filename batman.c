@@ -1,5 +1,5 @@
 #include "batman.h"
-#define BATCH_SZ 200
+#define BATCH_SZ 1000
 
 struct hashmap *hm = NULL;
 struct hashmap *stats = NULL;
@@ -12,7 +12,10 @@ int stats_size = 0;
 
 void flush(int code) {
   if (buffer_index == 0) return;
-  fwrite(buffer, 1, buffer_index, logfile);
+
+  time_t t = time(NULL);
+  fprintf(logfile, "\n[[%s]]\n", ctime(&t));
+  fprintf(logfile, "%s", buffer);
   fflush(logfile);
 
   buffer_index = 0;
@@ -55,16 +58,7 @@ int main(int argc, const char *argv[]) {
   );
   CGEventTapEnable(eventTap, true);
 
-  if (argc == 2) {
-    if (strcmp(argv[1], "clear") == 0) {
-      fopen(logfileLocation, "w");
-      printf("%s cleared.\n", logfileLocation);
-      fflush(stdout);
-      exit(1);
-    } else
-      logfileLocation = argv[1];
-  };
-
+  if (argc == 2) logfileLocation = argv[1];
   logfile = fopen(logfileLocation, "a");
   if (!logfile) {
     logfile = fopen(logfileLocation, "w");
@@ -87,12 +81,8 @@ CGEventRef CGEventCallback(CGEventTapProxy _, CGEventType type, CGEventRef event
   if (type != kCGEventKeyDown && type != kCGEventFlagsChanged) {
     return event;
   };
-
   CGKeyCode keyCode =
       (CGKeyCode)CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
-
-  bool caps = false;
-  bool down = false;
 
   if (type == kCGEventFlagsChanged) {
     switch (keyCode) {
@@ -116,17 +106,16 @@ CGEventRef CGEventCallback(CGEventTapProxy _, CGEventType type, CGEventRef event
         if (keyCode == 59) meta_flags ^= _LCTL;
         if (keyCode == 62) meta_flags ^= _RCTL;
         break;
-      case 57:  // caps
-        caps = true;
-        break;
     }
-  } else if (type == kCGEventKeyDown) {
-    down = true;
   }
 
   char key_str[128];
   key_str[0] = '\0';
-  const char *key = convertKeyCode(keyCode, isShift(meta_flags), caps);
+  const char *key = convertKeyCode(
+    keyCode,
+    (meta_flags & _LSFT) || (meta_flags & _RSFT),
+    keyCode==57
+  );
 
   if(!(keyCode >= 54 && keyCode <= 62)){
     if (isSet(_RCMD, meta_flags)) strcat(key_str, "rcmd+");
@@ -137,7 +126,7 @@ CGEventRef CGEventCallback(CGEventTapProxy _, CGEventType type, CGEventRef event
     if (isSet(_LOPT, meta_flags)) strcat(key_str, "lopt+");
     if (isSet(_RCTL, meta_flags)) strcat(key_str, "rctrl+");
     if (isSet(_LCTL, meta_flags)) strcat(key_str, "lctrl+");
-    if (caps) strcat(key_str, "caps+");
+    if (keyCode==57) strcat(key_str, "caps+");
     strcat(key_str, key);
 
     int match = -1;
@@ -165,7 +154,6 @@ CGEventRef CGEventCallback(CGEventTapProxy _, CGEventType type, CGEventRef event
     - most used key combinations
     - ignore (shift, ctrl, cmd, option)
   */
-
 
   if (buffer_index >= BATCH_SZ - 20) {
     flush(0);

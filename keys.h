@@ -1,4 +1,3 @@
-// LEFT is lower 4 bits, RIGHT is higher 4 bits
 #define _RCMD 0x10000000
 #define _RSFT 0x01000000
 #define _ROPT 0x00100000
@@ -10,26 +9,6 @@
 
 bool isSet(int flag, int flags) {
   return (flags & flag) == flag;
-}
-
-bool isShift(int flags) {
-  return (flags & _LSFT) || (flags & _RSFT);
-}
-
-bool isOpt(int flags) {
-  return (flags & _LOPT) || (flags & _ROPT);
-}
-
-bool isCtrl(int flags) {
-  return (flags & _LCTL) || (flags & _RCTL);
-}
-
-bool isCmd(int flags) {
-  return (flags & _LCMD) || (flags & _RCMD);
-}
-
-bool isSpecial(int flags) {
-  return flags > 0;
 }
 
 const char *convertKeyCode(int keyCode, bool shift, bool caps) {

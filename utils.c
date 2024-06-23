@@ -26,6 +26,8 @@ int split(char *str, const char *delim, char ***arr, int *length) {
   }
   *arr = res;
   *length = i;
+
+  free(token);
   return 1;
 }
 
@@ -42,32 +44,23 @@ int execute(char *str) {
   }
   new_args[length] = NULL;
 
-  printf("Program: %s\n", program);
-  printf("Args: ");
-  for (int i = 1; i < length; i++) {
-    printf("%s ", new_args[i]);
-  };
+  pid_t pid = fork();
+  if (pid == 0) {
+    execvp(program, new_args);
+    exit(0);
+  } else {
+    wait(NULL);
+  }
 
+  free(args);
+  free(new_args);
   return 0;
-
-  // pid_t pid = fork();
-  // if (pid == 0) {
-  //   execvp(program, new_args);
-  //   exit(0);
-  // } else {
-  //   free(args);
-  //   free(new_args);
-  //   return 0;
-  // }
 }
 
 
 void update_hashmap(struct hashmap **hashmap, int *hashmap_size) {
   FILE *fp = fopen("./batman.conf", "r");
-  if (fp == NULL) {
-    printf("Error opening file\n");
-    return;
-  }
+  if (fp == NULL) return;
   char *line = NULL;
   size_t len = 0;
   ssize_t read;
@@ -77,7 +70,6 @@ void update_hashmap(struct hashmap **hashmap, int *hashmap_size) {
   struct hashmap *new_hashmap = NULL;
   bool comment = false;
   while ((read = getline(&line, &len, fp)) != -1) {
-    // ignore empty lines or comments
     if (line[0] == '\n') continue;
     comment = false;
     for (int i = 0; i < strlen(line); i++) {
@@ -116,7 +108,6 @@ void update_hashmap(struct hashmap **hashmap, int *hashmap_size) {
 
   *hashmap = new_hashmap;
   *hashmap_size = count;
-  printf("Hashmap updated.\n");
   return;
 }
 
@@ -133,5 +124,6 @@ int get_value(
       return 0;
     }
   }
-  return 1; // Key not found
+
+  return 1;
 }

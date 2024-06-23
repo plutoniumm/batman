@@ -5,7 +5,7 @@ PLISTFULL=/Library/LaunchDaemons/$(PLIST)
 
 all: batman.c
 	rm ./$(EXECUTABLE)
-	gcc batman.c utils.c -framework ApplicationServices -framework Carbon -o $(EXECUTABLE)
+	gcc batman.c utils.c -O2 -framework ApplicationServices -framework Carbon -o $(EXECUTABLE)
 
 install: all
 	mkdir -p $(INSTALLDIR)
