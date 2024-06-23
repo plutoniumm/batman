@@ -1,8 +1,6 @@
 #include "batman.h"
 #define BATCH_SZ 200
 
-CGEventFlags lastFlags = 0;
-
 struct hashmap *hm = NULL;
 struct hashmap *stats = NULL;
 
@@ -14,7 +12,6 @@ int stats_size = 0;
 
 void flush(int code) {
   if (buffer_index == 0) return;
-  // write to file
   fwrite(buffer, 1, buffer_index, logfile);
   fflush(logfile);
 
@@ -22,7 +19,6 @@ void flush(int code) {
   memset(buffer, 0, BATCH_SZ);
 
   if (code != 0) {
-    fprintf(logfile, "Keylogging has ended.\n");
     fclose(logfile);
     exit(0);
   };
@@ -78,9 +74,6 @@ int main(int argc, const char *argv[]) {
     exit(1);
   };
 
-  fprintf(logfile, "Keylogging has begun.\n");
-  fflush(logfile);
-
   printf("Logging to: %s\n", logfileLocation);
   fflush(stdout);
   CFRunLoopRun();
@@ -88,83 +81,54 @@ int main(int argc, const char *argv[]) {
   return 0;
 }
 
-int count = 0;
-CGEventRef CGEventCallback(
-  CGEventTapProxy proxy,
-  CGEventType type,
-  CGEventRef event,
-  void *refcon
-) {
+int meta_flags = 0;
+// _ = proxy, __ = refcon
+CGEventRef CGEventCallback(CGEventTapProxy _, CGEventType type, CGEventRef event, void *__) {
   if (type != kCGEventKeyDown && type != kCGEventFlagsChanged) {
     return event;
   };
-  printf("\n\nEvent type: %d\n", type);
 
-  CGEventFlags flags = CGEventGetFlags(event);
   CGKeyCode keyCode =
       (CGKeyCode)CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
 
   bool caps = false;
   bool down = false;
-  bool meta = keyCode >= 54 && keyCode <= 62;;
-  int pressed = 0;
-  int meta_flags = 0;
-
-  if(keyCode == 7){
-    exit(0);
-  };
 
   if (type == kCGEventFlagsChanged) {
     switch (keyCode) {
-      case 54:  // [right-cmd]
-      case 55:  // [left-cmd]
-        down = (flags & kCGEventFlagMaskCommand) &&
-               !(lastFlags & kCGEventFlagMaskCommand);
+      case 54:  // r-cmd
+      case 55:  // l-cmd
         if (keyCode == 54) meta_flags ^= _RCMD;
         if (keyCode == 55) meta_flags ^= _LCMD;
         break;
-      case 56:  // [left-shift]
-      case 60:  // [right-shift]
-        down = (flags & kCGEventFlagMaskShift) &&
-               !(lastFlags & kCGEventFlagMaskShift);
+      case 56:  // l-shift
+      case 60:  // r-shift
         if (keyCode == 60) meta_flags ^= _RSFT;
         if (keyCode == 56) meta_flags ^= _LSFT;
         break;
-      case 58:  // [left-option]
-      case 61:  // [right-option]
-        down = (flags & kCGEventFlagMaskAlternate) &&
-               !(lastFlags & kCGEventFlagMaskAlternate);
+      case 58:  // l-opt
+      case 61:  // r-opt
         if (keyCode == 58) meta_flags ^= _LOPT;
         if (keyCode == 61) meta_flags ^= _ROPT;
         break;
-      case 59:  // [left-ctrl]
-      case 62:  // [right-ctrl]
-        down = (flags & kCGEventFlagMaskControl) &&
-               !(lastFlags & kCGEventFlagMaskControl);
+      case 59:  // l-ctrl
+      case 62:  // r-ctrl
         if (keyCode == 59) meta_flags ^= _LCTL;
         if (keyCode == 62) meta_flags ^= _RCTL;
         break;
-      case 57:  // [caps]
-        down = (flags & kCGEventFlagMaskAlphaShift) &&
-               !(lastFlags & kCGEventFlagMaskAlphaShift);
-      default:
+      case 57:  // caps
+        caps = true;
         break;
     }
-    printf("Metaflags: %d\n", meta_flags);
   } else if (type == kCGEventKeyDown) {
     down = true;
   }
 
-  count++;
-  printf("Count: %d, Metaflags: %d\n", count, meta_flags);
-  printf("Keycode: %d, Flags: %llu, LastFlags: %llu\n", keyCode, flags, lastFlags);
-  lastFlags = flags;
-
   char key_str[128];
   key_str[0] = '\0';
-  const char *key = convertKeyCode(keyCode, isShift(flags), caps);
+  const char *key = convertKeyCode(keyCode, isShift(meta_flags), caps);
 
-  if(!meta){
+  if(!(keyCode >= 54 && keyCode <= 62)){
     if (isSet(_RCMD, meta_flags)) strcat(key_str, "rcmd+");
     if (isSet(_LCMD, meta_flags)) strcat(key_str, "lcmd+");
     if (isSet(_RSFT, meta_flags)) strcat(key_str, "rshift+");
@@ -174,21 +138,24 @@ CGEventRef CGEventCallback(
     if (isSet(_RCTL, meta_flags)) strcat(key_str, "rctrl+");
     if (isSet(_LCTL, meta_flags)) strcat(key_str, "lctrl+");
     if (caps) strcat(key_str, "caps+");
-
     strcat(key_str, key);
-    printf("Key combination: %s\n", key_str);
-  };
-  /*
-    - This line exists because special chars are triggered twice
-    - this records it only on keydown and not keyup
-    - any combinations/hooks will have to be registered BEFORE this line
-  */
-  if (!down) return event;
-  for (int i = 0; i < strlen(key); i++) {
-    buffer[buffer_index] = key[i];
-    buffer_index++;
-  };
 
+    int match = -1;
+    for (int i = 0; i < hashmap_size; i++) {
+      if (strcmp(hm[i].key, key_str) == 0) {
+        match = i;
+        printf("Match: %s->%s\n", key_str, hm[i].value);
+        exec(hm[i].value);
+        break;
+      };
+    };
+
+    // this will prevent writing shift, ctrl, cmd, option
+    for (int i = 0; i < strlen(key); i++) {
+      buffer[buffer_index] = key[i];
+      buffer_index++;
+    };
+  };
 
   /*
     we need to also keep stats

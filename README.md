@@ -1,4 +1,6 @@
-# batman
+<img src="./assets/icon.svg" width="100" height="100" align="right">
+
+### batman
 This repository holds the code for a simple keylogger for macOS with hooks for function execution on keypresses. We'll soon have a `.brc` config file to insert custom functions to run on keypresses.
 
 ## Usage

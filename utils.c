@@ -28,6 +28,40 @@ int split(char *str, const char *delim, char ***arr, int *length) {
   return 1;
 }
 
+// a string will be sent as "program,arg1,arg2,..."
+int exec(char *str) {
+  char **args = NULL;
+  int length;
+  split(str, ",", &args, &length);
+
+  char *program = args[0];
+  char **new_args = (char **) malloc((length + 1) * sizeof(char *));
+  for (int i = 0; i < length; i++) {
+    new_args[i] = args[i];
+  }
+  new_args[length] = NULL;
+
+  // no fork yet, first just print
+  printf("Program: %s\n", program);
+  printf("Args: ");
+  for (int i = 0; i < length; i++) {
+    printf("%s ", new_args[i]);
+  };
+
+  return 0;
+
+  // pid_t pid = fork();
+  // if (pid == 0) {
+  //   execvp(program, new_args);
+  //   exit(0);
+  // } else {
+  //   free(args);
+  //   free(new_args);
+  //   return 0;
+  // }
+}
+
+
 void update_hashmap(struct hashmap **hashmap, int *hashmap_size) {
   FILE *fp = fopen("./.brc", "r");
   if (fp == NULL) {
