@@ -1,28 +1,49 @@
 #include "batman.h"
-#define BATCH_SZ 1000
+#define BATCH_SZ 10000
 
 struct hashmap *hm = NULL;
-struct hashmap *stats = NULL;
 
 char buffer[BATCH_SZ];
 
 int buffer_index = 0;
 int hashmap_size = 0;
-int stats_size = 0;
 
 void flush(int code) {
   if (buffer_index == 0) return;
 
+  char *t_print;
   time_t t = time(NULL);
-  fprintf(logfile, "\n[[%s]]\n", ctime(&t));
+  t_print = strtok(ctime(&t), "\n");
+  fprintf(logfile, "\n\n[[%s]]\n", t_print); //ctime adds its own newline
+
   fprintf(logfile, "%s", buffer);
   fflush(logfile);
+  char *ignores = "🔙→←↓↑";
+
+  // writing clean file without meta keys
+  for (int i = 0; i < buffer_index; i++) {
+		if (buffer[i] == '[') {
+			while (buffer[i] != ']') i++;
+		} else {
+			int ignore = 0;
+			for (int j = 0; j < strlen(ignores); j++) {
+				if (buffer[i] == ignores[j]) {
+					ignore = 1;
+					break;
+				};
+			};
+			if (!ignore){
+				fputc(buffer[i], cleanfile);
+			};
+		};
+	};
 
   buffer_index = 0;
   memset(buffer, 0, BATCH_SZ);
 
   if (code != 0) {
     fclose(logfile);
+    fclose(cleanfile);
     exit(0);
   };
 };
@@ -59,14 +80,8 @@ int main(int argc, const char *argv[]) {
   CGEventTapEnable(eventTap, true);
 
   if (argc == 2) logfileLocation = argv[1];
-  logfile = fopen(logfileLocation, "a");
-  if (!logfile) {
-    logfile = fopen(logfileLocation, "w");
-  };
-  if (!logfile) {
-    fprintf(stderr, "ERROR: Unable to open %s for writing, check permissions.\n", logfileLocation);
-    exit(1);
-  };
+  logfile = open_file(logfile, logfileLocation);
+  cleanfile = open_file(cleanfile, cleanfileLocation);
 
   printf("Logging to: %s\n", logfileLocation);
   fflush(stdout);
@@ -145,15 +160,6 @@ CGEventRef CGEventCallback(CGEventTapProxy _, CGEventType type, CGEventRef event
       buffer_index++;
     };
   };
-
-  /*
-    we need to also keep stats
-    - speed of typing
-    - number of times backspace was pressed
-    - most used keys
-    - most used key combinations
-    - ignore (shift, ctrl, cmd, option)
-  */
 
   if (buffer_index >= BATCH_SZ - 20) {
     flush(0);

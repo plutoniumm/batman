@@ -78,8 +78,8 @@ const char *convertKeyCode(int keyCode, bool shift, bool caps) {
     case 89:  return "7";
     case 91:  return "8";
     case 92:  return "9";
-    case 36:  return "\n";
-    case 48:  return "\t";
+    case 36:  return "[\\n]";
+    case 48:  return "[\\t]";
     case 49:  return " ";
     case 51:  return "🔙";
     case 53:  return "[esc]";
